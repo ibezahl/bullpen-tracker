@@ -2,6 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Pt = { x: number; y: number };
 
@@ -608,21 +620,19 @@ export default function Home() {
         {!session && (
           <div className="grid gap-3 md:grid-cols-3 items-end">
             <div className="md:col-span-1">
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <input
+              <Label className="block text-sm font-medium mb-1">Email</Label>
+              <Input
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2"
                 placeholder="you@email.com"
                 type="email"
               />
             </div>
             <div className="md:col-span-1">
-              <label className="block text-sm font-medium mb-1">Password</label>
-              <input
+              <Label className="block text-sm font-medium mb-1">Password</Label>
+              <Input
                 value={authPassword}
                 onChange={(e) => setAuthPassword(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2"
                 placeholder="password"
                 type="password"
               />
@@ -662,42 +672,41 @@ export default function Home() {
           <div className="rounded-xl border bg-white p-4 shadow-sm">
             <h2 className="text-lg font-semibold mb-3">Pitcher</h2>
 
-            <label className="block text-sm font-medium mb-1">Select pitcher</label>
-            <select
-              value={selectedPitcherId}
-              onChange={(e) => setSelectedPitcherId(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 bg-white"
-              disabled={pitchersLoading}
-            >
-              <option value="">{pitchersLoading ? "Loading…" : "Choose a pitcher"}</option>
-              {pitchers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                  {p.throwing_hand ? ` (${p.throwing_hand})` : ""}
-                </option>
-              ))}
-            </select>
+            <Label className="block text-sm font-medium mb-1">Select pitcher</Label>
+            <Select value={selectedPitcherId} onValueChange={setSelectedPitcherId}>
+              <SelectTrigger className="w-full" disabled={pitchersLoading}>
+                <SelectValue placeholder={pitchersLoading ? "Loading…" : "Choose a pitcher"} />
+              </SelectTrigger>
+              <SelectContent>
+                {pitchers.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                    {p.throwing_hand ? ` (${p.throwing_hand})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3 items-end">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Add pitcher</label>
-                <input
+                <Label className="block text-sm font-medium mb-1">Add pitcher</Label>
+                <Input
                   value={newPitcherName}
                   onChange={(e) => setNewPitcherName(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
                   placeholder="Name"
                 />
               </div>
               <div className="md:col-span-1">
-                <label className="block text-sm font-medium mb-1">Throws</label>
-                <select
-                  value={newPitcherHand}
-                  onChange={(e) => setNewPitcherHand(e.target.value as any)}
-                  className="w-full border rounded-lg px-3 py-2 bg-white"
-                >
-                  <option value="R">R</option>
-                  <option value="L">L</option>
-                </select>
+                <Label className="block text-sm font-medium mb-1">Throws</Label>
+                <Select value={newPitcherHand} onValueChange={(v) => setNewPitcherHand(v as any)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="R">R</SelectItem>
+                    <SelectItem value="L">L</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="md:col-span-3">
                 <button onClick={createPitcher} className="px-3 py-2 rounded-lg bg-black text-white">
@@ -710,40 +719,43 @@ export default function Home() {
           <div className="rounded-xl border bg-white p-4 shadow-sm">
             <h2 className="text-lg font-semibold mb-3">Session</h2>
 
-            <label className="block text-sm font-medium mb-1">Select session</label>
-            <select
-              value={selectedSessionId}
-              onChange={(e) => setSelectedSessionId(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 bg-white"
-              disabled={!selectedPitcherId || sessionsLoading}
-            >
-              <option value="">
-                {!selectedPitcherId ? "Select a pitcher first" : sessionsLoading ? "Loading…" : "Choose a session"}
-              </option>
-              {sessions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.session_date}
-                  {s.label ? ` — ${s.label}` : ""}
-                </option>
-              ))}
-            </select>
+            <Label className="block text-sm font-medium mb-1">Select session</Label>
+            <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
+              <SelectTrigger className="w-full" disabled={!selectedPitcherId || sessionsLoading}>
+                <SelectValue
+                  placeholder={
+                    !selectedPitcherId
+                      ? "Select a pitcher first"
+                      : sessionsLoading
+                      ? "Loading…"
+                      : "Choose a session"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {sessions.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.session_date}
+                    {s.label ? ` — ${s.label}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <div className="mt-4 grid gap-3 md:grid-cols-3 items-end">
               <div className="md:col-span-1">
-                <label className="block text-sm font-medium mb-1">Date</label>
-                <input
+                <Label className="block text-sm font-medium mb-1">Date</Label>
+                <Input
                   value={newSessionDate}
                   onChange={(e) => setNewSessionDate(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
                   type="date"
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Label (optional)</label>
-                <input
+                <Label className="block text-sm font-medium mb-1">Label (optional)</Label>
+                <Input
                   value={newSessionLabel}
                   onChange={(e) => setNewSessionLabel(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
                   placeholder="Example: Side work, Bullpen #3"
                 />
               </div>
@@ -1007,13 +1019,12 @@ export default function Home() {
                           dx {p.dx.toFixed(3)}, dy {p.dy.toFixed(3)}
                         </div>
                       </div>
-                      <div
-                        className={`text-xs px-2 py-1 rounded border ${
-                          out ? "text-red-700 border-red-200" : "text-green-700 border-green-200"
-                        }`}
+                      <Badge
+                        variant="outline"
+                        className={out ? "text-red-700 border-red-200" : "text-green-700 border-green-200"}
                       >
                         {out ? "Out" : "In"}
-                      </div>
+                      </Badge>
                     </button>
                   );
                 })}
@@ -1026,26 +1037,27 @@ export default function Home() {
           <div className="rounded-xl border bg-white p-4 shadow-sm">
             <h2 className="text-lg font-semibold mb-3">Pitch details</h2>
 
-            <label className="block text-sm font-medium mb-1">Pitch type</label>
-            <select
-              value={pitchType}
-              onChange={(e) => setPitchType(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 bg-white"
-            >
-              <option value="FB">Fastball (FB)</option>
-              <option value="SL">Slider (SL)</option>
-              <option value="CB">Curveball (CB)</option>
-              <option value="CH">Changeup (CH)</option>
-              <option value="CT">Cutter (CT)</option>
-              <option value="SI">Sinker (SI)</option>
-              <option value="OT">Other</option>
-            </select>
+            <Label className="block text-sm font-medium mb-1">Pitch type</Label>
+            <Select value={pitchType} onValueChange={setPitchType}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="FB">Fastball (FB)</SelectItem>
+                <SelectItem value="SL">Slider (SL)</SelectItem>
+                <SelectItem value="CB">Curveball (CB)</SelectItem>
+                <SelectItem value="CH">Changeup (CH)</SelectItem>
+                <SelectItem value="CT">Cutter (CT)</SelectItem>
+                <SelectItem value="SI">Sinker (SI)</SelectItem>
+                <SelectItem value="OT">Other</SelectItem>
+              </SelectContent>
+            </Select>
 
-            <label className="block text-sm font-medium mt-4 mb-1">Notes (optional)</label>
-            <textarea
+            <Label className="block text-sm font-medium mt-4 mb-1">Notes (optional)</Label>
+            <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 bg-white min-h-[100px]"
+              className="min-h-[100px]"
               placeholder="Example: working glove-side, missed arm-side today"
             />
           </div>
@@ -1098,6 +1110,7 @@ export default function Home() {
                 {pitchTypeBreakdown.length > 0 && (
                   <div>
                     <div className="text-sm font-medium mb-2">By pitch type</div>
+                    <Separator className="mb-2" />
                     <div className="divide-y rounded-lg border">
                       {pitchTypeBreakdown.map((row) => (
                         <div key={row.pitch_type} className="flex items-center justify-between px-3 py-2 text-sm">
