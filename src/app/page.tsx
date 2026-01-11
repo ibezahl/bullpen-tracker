@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient, type Session } from "@supabase/supabase-js";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -44,6 +45,7 @@ type PitchRow = {
   pitcher_id: string;
   session_id: string;
   pitch_type: string;
+  tag: string | null;
   intended_location_zone_id: string | null;
   actual_location_zone_id: string | null;
   target_x: number;
@@ -103,6 +105,7 @@ function zoneIdToPoint(zoneId: ZoneId): Pt {
 
 export default function Home() {
   const supabaseReady = Boolean(supabase);
+  const searchParams = useSearchParams();
 
   // Auth
   const [session, setSession] = useState<Session | null>(null);
@@ -114,6 +117,7 @@ export default function Home() {
   // Domain
   const [pitchType, setPitchType] = useState<string>(DEFAULT_PITCH_TYPE);
   const [notes, setNotes] = useState<string>("");
+  const [tag, setTag] = useState<string>("");
 
   // Filters and selection
   const [pitchTypeFilter, setPitchTypeFilter] = useState<string>("ALL");
@@ -149,6 +153,10 @@ export default function Home() {
 
   const [pitches, setPitches] = useState<PitchRow[]>([]);
   const [pitchesLoading, setPitchesLoading] = useState(false);
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const [currentEventId, setCurrentEventId] = useState<string | null>(null);
+  const [linkTimestampSeconds, setLinkTimestampSeconds] = useState<number | null>(null);
+  const [linkSessionId, setLinkSessionId] = useState<string | null>(null);
 
   const filteredPitches = useMemo(() => {
     if (pitchTypeFilter === "ALL") return pitches;
@@ -172,6 +180,7 @@ export default function Home() {
   function resetPitchForm() {
     setPitchType(DEFAULT_PITCH_TYPE);
     setNotes("");
+    setTag("");
     setIntendedZoneId(null);
     setActualZoneId(null);
   }
@@ -194,6 +203,19 @@ export default function Home() {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    const sessionParam = searchParams.get("sessionId");
+    const eventParam = searchParams.get("eventId");
+    const timestampParam = searchParams.get("timestamp");
+    if (sessionParam) setPendingSessionId(sessionParam);
+    if (sessionParam) setLinkSessionId(sessionParam);
+    if (eventParam) setCurrentEventId(eventParam);
+    if (timestampParam) {
+      const parsed = Number(timestampParam);
+      setLinkTimestampSeconds(Number.isFinite(parsed) ? parsed : null);
+    }
+  }, [searchParams]);
 
   const status = useMemo(() => {
     if (editingPitchId) return "Editing pitch";
@@ -363,6 +385,28 @@ export default function Home() {
     load();
   }, [selectedPitcherId, session?.user?.id]);
 
+  useEffect(() => {
+    if (!supabase || !session?.user?.id || !pendingSessionId) return;
+
+    const loadPitcherForSession = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("sessions")
+          .select("id,pitcher_id")
+          .eq("id", pendingSessionId)
+          .single();
+        if (error) throw error;
+        if (data?.pitcher_id) {
+          setSelectedPitcherId(data.pitcher_id);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    loadPitcherForSession();
+  }, [pendingSessionId, session?.user?.id]);
+
   // Load pitches when session changes
   useEffect(() => {
     if (!supabase || !session?.user?.id || !selectedSessionId) {
@@ -376,7 +420,7 @@ export default function Home() {
         const { data, error } = await supabase
           .from("pitches")
           .select(
-            "id,user_id,pitcher_id,session_id,pitch_type,intended_location_zone_id,actual_location_zone_id,target_x,target_y,actual_x,actual_y,dx,dy,notes,created_at"
+            "id,user_id,pitcher_id,session_id,pitch_type,tag,intended_location_zone_id,actual_location_zone_id,target_x,target_y,actual_x,actual_y,dx,dy,notes,created_at"
           )
           .eq("session_id", selectedSessionId)
           .order("created_at", { ascending: false })
@@ -393,6 +437,41 @@ export default function Home() {
 
     load();
   }, [selectedSessionId, session?.user?.id]);
+
+  useEffect(() => {
+    if (!pendingSessionId) return;
+    if (!sessions.length) return;
+    const exists = sessions.some((s) => s.id === pendingSessionId);
+    if (exists) {
+      setSelectedSessionId(pendingSessionId);
+      setPendingSessionId(null);
+    }
+  }, [pendingSessionId, sessions]);
+
+  function formatLinkTimestamp(seconds: number | null) {
+    if (seconds === null || !Number.isFinite(seconds)) return "0:00";
+    const safeSeconds = Math.max(0, Math.floor(seconds));
+    const minutes = Math.floor(safeSeconds / 60);
+    const remaining = safeSeconds % 60;
+    return `${minutes}:${String(remaining).padStart(2, "0")}`;
+  }
+
+  function clearLinkingParams() {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("sessionId");
+    next.delete("eventId");
+    next.delete("timestamp");
+    const qs = next.toString();
+    window.history.replaceState({}, "", qs ? `/?${qs}` : "/");
+    setCurrentEventId(null);
+    setLinkTimestampSeconds(null);
+    setLinkSessionId(null);
+  }
+
+  function buildLinkingReturnUrl() {
+    if (!linkSessionId) return null;
+    return `/sessions/${linkSessionId}`;
+  }
 
   // Undo last pitch (delete most recent pitch for session)
   async function undoLastPitch() {
@@ -558,6 +637,7 @@ export default function Home() {
           .from("pitches")
           .update({
             pitch_type: pitchType,
+            tag: tag || null,
             intended_location_zone_id: intendedZoneId,
             actual_location_zone_id: actualZoneId,
             target_x: target.x,
@@ -571,7 +651,7 @@ export default function Home() {
           .eq("id", editingPitchId)
           .eq("user_id", session.user.id)
           .select(
-            "id,user_id,pitcher_id,session_id,pitch_type,intended_location_zone_id,actual_location_zone_id,target_x,target_y,actual_x,actual_y,dx,dy,notes,created_at"
+            "id,user_id,pitcher_id,session_id,pitch_type,tag,intended_location_zone_id,actual_location_zone_id,target_x,target_y,actual_x,actual_y,dx,dy,notes,created_at"
           )
           .single();
         if (error) throw error;
@@ -592,6 +672,7 @@ export default function Home() {
             pitcher_id: selectedPitcherId,
             session_id: selectedSessionId,
             pitch_type: pitchType,
+            tag: tag || null,
             intended_location_zone_id: intendedZoneId,
             actual_location_zone_id: actualZoneId,
             target_x: target.x,
@@ -603,7 +684,7 @@ export default function Home() {
             notes: notes || null,
           })
           .select(
-            "id,user_id,pitcher_id,session_id,pitch_type,intended_location_zone_id,actual_location_zone_id,target_x,target_y,actual_x,actual_y,dx,dy,notes,created_at"
+            "id,user_id,pitcher_id,session_id,pitch_type,tag,intended_location_zone_id,actual_location_zone_id,target_x,target_y,actual_x,actual_y,dx,dy,notes,created_at"
           )
           .single();
         if (error) throw error;
@@ -622,6 +703,30 @@ export default function Home() {
           const pitchNum = sorted.findIndex((p) => p.id === newPitch.id) + 1;
 
           showToast(`Saved pitch #${pitchNum} (${pitchType}) ✅`);
+
+          if (currentEventId) {
+            const { error: linkError } = await supabase
+              .from("pitch_events")
+              .update({ pitch_id: newPitch.id })
+              .eq("id", currentEventId)
+              .eq("user_id", session.user.id);
+            if (linkError) {
+              console.error(linkError);
+              alert("Linking failed. This may be due to Supabase RLS policies.");
+            } else {
+              const returnUrl = buildLinkingReturnUrl();
+              showToast("Linked marked video event ✅");
+              setLinkSessionId(null);
+              setLinkTimestampSeconds(null);
+              setCurrentEventId(null);
+              if (returnUrl) {
+                window.history.replaceState({}, "", "/");
+                setTimeout(() => {
+                  window.location.href = returnUrl;
+                }, 350);
+              }
+            }
+          }
         }
 
         // Bullpen workflow: clear actual after save, optionally keep intended.
@@ -669,6 +774,7 @@ export default function Home() {
     setEditingPitchId(pitch.id);
     setPitchType(pitch.pitch_type);
     setNotes(pitch.notes ?? "");
+    setTag(pitch.tag ?? "");
     setIntendedZoneId(isZoneId(pitch.intended_location_zone_id) ? pitch.intended_location_zone_id : null);
     setActualZoneId(isZoneId(pitch.actual_location_zone_id) ? pitch.actual_location_zone_id : null);
   }
@@ -775,6 +881,22 @@ export default function Home() {
           </Button>
         </div>
       </header>
+
+      {currentEventId && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 flex flex-col gap-2">
+          <div className="font-medium">Linking marked pitch at {formatLinkTimestamp(linkTimestampSeconds)}</div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={clearLinkingParams}>
+              Cancel linking
+            </Button>
+            {buildLinkingReturnUrl() && (
+              <Button asChild variant="outline" size="sm">
+                <Link href={buildLinkingReturnUrl()!}>Back to session summary</Link>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {session && (
         <div className="grid gap-4 md:grid-cols-2">
@@ -899,6 +1021,11 @@ export default function Home() {
           <div className="text-sm text-gray-600">
             Status: <span className="font-medium">{status}</span>
           </div>
+          {currentEventId && (
+            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+              Linking the next saved pitch to a marked video event.
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-gray-600">Filter:</span>
@@ -1063,6 +1190,11 @@ export default function Home() {
                         >
                           <div className="font-mono text-gray-500">#{pitchNum ?? "?"}</div>
                           <div className="font-medium">{p.pitch_type}</div>
+                          {p.tag ? (
+                            <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                              {p.tag}
+                            </span>
+                          ) : null}
                           <div className="text-gray-600 font-mono">
                             dx {p.dx.toFixed(3)}, dy {p.dy.toFixed(3)}
                           </div>
@@ -1121,6 +1253,13 @@ export default function Home() {
                   <SelectItem value="OT">Other</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Label className="block text-sm font-medium mt-4 mb-1">Tag (optional)</Label>
+              <Input
+                value={tag}
+                onChange={(e) => setTag(e.target.value)}
+                placeholder="Example: miss up, good feel, bullpen"
+              />
 
               <Label className="block text-sm font-medium mt-4 mb-1">Notes (optional)</Label>
               <Textarea
