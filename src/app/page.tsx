@@ -87,6 +87,8 @@ function toHand(value: string): Hand {
 const DEFAULT_PITCH_TYPE = "FB";
 const zones5x5 = buildZones5x5();
 const zoneById = new Map(zones5x5.map((zone) => [zone.id, zone]));
+const STORAGE_PITCHER_KEY = "bullpen:selectedPitcherId";
+const STORAGE_SESSION_KEY = "bullpen:selectedSessionId";
 
 function zoneIdToPoint(zoneId: ZoneId): Pt {
   const zone = zoneById.get(zoneId);
@@ -126,6 +128,7 @@ function HomeClient() {
   const [pitchers, setPitchers] = useState<Pitcher[]>([]);
   const [pitchersLoading, setPitchersLoading] = useState(false);
   const [selectedPitcherId, setSelectedPitcherId] = useState<string>("");
+  const [hydrated, setHydrated] = useState(false);
 
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -142,11 +145,13 @@ function HomeClient() {
     const dd = String(d.getDate()).padStart(2, "0");
     return `${yyyy}-${mm}-${dd}`;
   });
+  const [sessionDateUnlocked, setSessionDateUnlocked] = useState(false);
 
   // Strike zone
   const [intendedZoneId, setIntendedZoneId] = useState<ZoneId | null>(null);
   const [actualZoneId, setActualZoneId] = useState<ZoneId | null>(null);
   const [editingPitchId, setEditingPitchId] = useState<string | null>(null);
+  const [activeGrid, setActiveGrid] = useState<"actual" | "intended">("actual");
 
   // Bullpen: keep intended toggle and pitches state
   const [keepIntendedBetweenSaves, setKeepIntendedBetweenSaves] = useState(true);
@@ -205,6 +210,33 @@ function HomeClient() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedPitcherId = window.localStorage.getItem(STORAGE_PITCHER_KEY) ?? "";
+    const storedSessionId = window.localStorage.getItem(STORAGE_SESSION_KEY) ?? "";
+    if (storedPitcherId) setSelectedPitcherId(storedPitcherId);
+    if (storedSessionId) setSelectedSessionId(storedSessionId);
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return;
+    if (selectedPitcherId) {
+      window.localStorage.setItem(STORAGE_PITCHER_KEY, selectedPitcherId);
+    } else {
+      window.localStorage.removeItem(STORAGE_PITCHER_KEY);
+    }
+  }, [hydrated, selectedPitcherId]);
+
+  useEffect(() => {
+    if (!hydrated || typeof window === "undefined") return;
+    if (selectedSessionId) {
+      window.localStorage.setItem(STORAGE_SESSION_KEY, selectedSessionId);
+    } else {
+      window.localStorage.removeItem(STORAGE_SESSION_KEY);
+    }
+  }, [hydrated, selectedSessionId]);
+
+  useEffect(() => {
     const sessionParam = searchParams.get("sessionId");
     const eventParam = searchParams.get("eventId");
     const timestampParam = searchParams.get("timestamp");
@@ -223,6 +255,11 @@ function HomeClient() {
     if (!actualZoneId) return "Select actual zone";
     return "Ready to save";
   }, [editingPitchId, intendedZoneId, actualZoneId]);
+  const isEditing = Boolean(editingPitchId);
+  const editingPitchNumber = useMemo(() => {
+    if (!editingPitchId) return null;
+    return pitchNumberById.get(editingPitchId) ?? null;
+  }, [editingPitchId, pitchNumberById]);
 
   const intendedPoint = useMemo(() => {
     return intendedZoneId ? zoneIdToPoint(intendedZoneId) : null;
@@ -370,7 +407,10 @@ function HomeClient() {
         setSessions((data ?? []) as SessionRow[]);
 
         if ((data?.length ?? 0) > 0) {
-          setSelectedSessionId(data[0].id);
+          setSelectedSessionId((current) => {
+            const hasSelected = Boolean(current) && data?.some((row) => row.id === current);
+            return hasSelected ? current : data[0].id;
+          });
         } else {
           setSelectedSessionId("");
         }
@@ -384,6 +424,12 @@ function HomeClient() {
 
     load();
   }, [selectedPitcherId, session?.user?.id]);
+
+  useEffect(() => {
+    if (selectedSessionId) {
+      setSessionDateUnlocked(false);
+    }
+  }, [selectedSessionId]);
 
   useEffect(() => {
     if (!supabase || !session?.user?.id || !pendingSessionId) return;
@@ -608,7 +654,9 @@ function HomeClient() {
     }
   }
 
-  async function savePitch() {
+  async function savePitch(mode: "create" | "update") {
+    if (editingPitchId && mode === "create") return;
+    if (!editingPitchId && mode === "update") return;
     if (!supabase || !session?.user?.id) {
       alert("Please sign in first.");
       return;
@@ -908,7 +956,7 @@ function HomeClient() {
               <Label className="block text-sm font-medium mb-1">Select pitcher</Label>
               <Select value={selectedPitcherId} onValueChange={setSelectedPitcherId}>
                 <SelectTrigger className="w-full" disabled={pitchersLoading}>
-                  <SelectValue placeholder={pitchersLoading ? "Loading…" : "Choose a pitcher"} />
+                  <SelectValue placeholder={pitchersLoading && hydrated ? "Loading…" : "Choose a pitcher"} />
                 </SelectTrigger>
                 <SelectContent>
                   {pitchers.map((p) => (
@@ -960,7 +1008,7 @@ function HomeClient() {
                     placeholder={
                       !selectedPitcherId
                         ? "Select a pitcher first"
-                        : sessionsLoading
+                        : sessionsLoading && hydrated
                         ? "Loading…"
                         : "Choose a session"
                     }
@@ -995,7 +1043,20 @@ function HomeClient() {
                     value={newSessionDate}
                     onChange={(e) => setNewSessionDate(e.target.value)}
                     type="date"
+                    disabled={Boolean(selectedSessionId) && !sessionDateUnlocked}
                   />
+                  {selectedSessionId && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => setSessionDateUnlocked(true)}
+                      disabled={sessionDateUnlocked}
+                    >
+                      Edit date
+                    </Button>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <Label className="block text-sm font-medium mb-1">Label (optional)</Label>
@@ -1021,6 +1082,11 @@ function HomeClient() {
           <div className="text-sm text-gray-600">
             Status: <span className="font-medium">{status}</span>
           </div>
+          {isEditing && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Editing pitch #{editingPitchNumber ?? "?"}
+            </div>
+          )}
           {currentEventId && (
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
               Linking the next saved pitch to a marked video event.
@@ -1054,26 +1120,63 @@ function HomeClient() {
           </div>
 
           <div className="grid gap-4 max-w-[420px]">
-            <StrikeZoneGrid
-              label="Intended location"
-              value={intendedZoneId}
-              onSelect={(zoneId) => {
-                setIntendedZoneId(zoneId);
-                setActualZoneId(null);
-              }}
-            />
-            <StrikeZoneGrid label="Actual location" value={actualZoneId} onSelect={setActualZoneId} />
+            <div className="text-sm text-gray-600">
+              Now selecting:{" "}
+              <span className="font-medium">
+                {activeGrid === "actual" ? "Actual location" : "Intended location"}
+              </span>
+            </div>
+            <div
+              className={`rounded-lg border-2 p-2 transition ${
+                activeGrid === "intended" ? "border-gray-900" : "border-transparent opacity-60"
+              }`}
+              onClick={() => setActiveGrid("intended")}
+            >
+              <StrikeZoneGrid
+                label="Intended location"
+                value={intendedZoneId}
+                onSelect={(zoneId) => {
+                  setActiveGrid("intended");
+                  setIntendedZoneId(zoneId);
+                  setActualZoneId(null);
+                }}
+              />
+            </div>
+            <div
+              className={`rounded-lg border-2 p-2 transition ${
+                activeGrid === "actual" ? "border-gray-900" : "border-transparent opacity-60"
+              }`}
+              onClick={() => setActiveGrid("actual")}
+            >
+              <StrikeZoneGrid
+                label="Actual location"
+                value={actualZoneId}
+                onSelect={(zoneId) => {
+                  setActiveGrid("actual");
+                  setActualZoneId(zoneId);
+                }}
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={savePitch}
-              disabled={!session || !selectedPitcherId || !selectedSessionId || !intendedZoneId || !actualZoneId}
-            >
-              {editingPitchId ? "Update pitch" : "Save pitch"}
-            </Button>
+            {!isEditing ? (
+              <Button
+                onClick={() => savePitch("create")}
+                disabled={!session || !selectedPitcherId || !selectedSessionId || !intendedZoneId || !actualZoneId}
+              >
+                Save pitch
+              </Button>
+            ) : (
+              <Button
+                onClick={() => savePitch("update")}
+                disabled={!session || !selectedPitcherId || !selectedSessionId || !intendedZoneId || !actualZoneId}
+              >
+                Update pitch
+              </Button>
+            )}
 
-            {editingPitchId && (
+            {isEditing && (
               <Button
                 variant="outline"
                 onClick={() => {

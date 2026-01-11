@@ -367,87 +367,89 @@ export default function TrendsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>Total pitches</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{overallStats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>In-zone rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{Math.round(overallStats.inZoneRate * 100)}%</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>Accuracy rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{Math.round(overallStats.accuracyRate * 100)}%</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle>Avg miss distance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-semibold">{overallStats.avgMissDist.toFixed(3)}</div>
-          </CardContent>
-        </Card>
-      </div>
-
       {loading ? (
         <div className="text-sm text-gray-600">Loading trends…</div>
       ) : !sessionMetrics.length ? (
         <div className="text-sm text-gray-600">No sessions found for these filters.</div>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Pitches per session</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BarChart title="Total pitches" values={totalBySession} labels={labels} />
-            </CardContent>
-          </Card>
+        <>
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Total pitches</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-semibold">{overallStats.total}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>In-zone rate</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-semibold">{Math.round(overallStats.inZoneRate * 100)}%</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Accuracy rate</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-semibold">{Math.round(overallStats.accuracyRate * 100)}%</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Avg miss distance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-semibold">{overallStats.avgMissDist.toFixed(3)}</div>
+              </CardContent>
+            </Card>
+          </div>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>In-zone rate by session</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <LineChart title="In-zone rate" values={inZoneBySession} labels={labels} />
-            </CardContent>
-          </Card>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Pitches per session</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BarChart title="Total pitches" values={totalBySession} labels={labels} />
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Accuracy rate by session</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <LineChart title="Accuracy rate" values={accuracyBySession} labels={labels} />
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>In-zone rate by session</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <LineChart title="In-zone rate" values={inZoneBySession} labels={labels} />
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Average miss distance</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <LineChart
-                title="Average miss distance"
-                values={avgMissBySession}
-                labels={labels}
-              />
-            </CardContent>
-          </Card>
-        </div>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Accuracy rate by session</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <LineChart title="Accuracy rate" values={accuracyBySession} labels={labels} />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle>Average miss distance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <LineChart
+                  title="Average miss distance"
+                  values={avgMissBySession}
+                  labels={labels}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
     </main>
   );
