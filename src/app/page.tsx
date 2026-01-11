@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createClient, type Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -103,7 +103,7 @@ function zoneIdToPoint(zoneId: ZoneId): Pt {
   };
 }
 
-export default function Home() {
+function HomeClient() {
   const supabaseReady = Boolean(supabase);
   const searchParams = useSearchParams();
 
@@ -1344,5 +1344,13 @@ export default function Home() {
         </section>
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div />}>
+      <HomeClient />
+    </Suspense>
   );
 }
