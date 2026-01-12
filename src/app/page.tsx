@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import AccountBar from "@/components/AccountBar";
 import { StrikeZoneGrid } from "@/components/StrikeZoneGrid";
 import {
   Select,
@@ -111,11 +112,6 @@ function HomeClient() {
 
   // Auth
   const [session, setSession] = useState<Session | null>(null);
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authBusy, setAuthBusy] = useState(false);
-
   // Domain
   const [pitchType, setPitchType] = useState<string>(DEFAULT_PITCH_TYPE);
   const [notes, setNotes] = useState<string>("");
@@ -546,57 +542,6 @@ function HomeClient() {
     }
   }
 
-  async function signUp() {
-    setAuthError(null);
-    if (!supabase) {
-      setAuthError("Supabase is not configured. Ensure app/.env.local has keys, then restart npm run dev.");
-      return;
-    }
-    setAuthBusy(true);
-    try {
-      const { error } = await supabase.auth.signUp({
-        email: authEmail,
-        password: authPassword,
-      });
-      if (error) throw error;
-      alert("Signed up. If email confirmation is enabled, check your email.");
-    } catch (e: unknown) {
-      setAuthError(getErrorMessage(e) || "Sign up failed");
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function signIn() {
-    setAuthError(null);
-    if (!supabase) {
-      setAuthError("Supabase is not configured. Ensure app/.env.local has keys, then restart npm run dev.");
-      return;
-    }
-    setAuthBusy(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: authEmail,
-        password: authPassword,
-      });
-      if (error) throw error;
-    } catch (e: unknown) {
-      setAuthError(getErrorMessage(e) || "Sign in failed");
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function signOut() {
-    if (!supabase) return;
-    setAuthBusy(true);
-    try {
-      await supabase.auth.signOut();
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
   async function createPitcher() {
     if (!supabase || !session?.user?.id) return;
     const name = newPitcherName.trim();
@@ -859,85 +804,35 @@ function HomeClient() {
         </div>
       )}
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle>Account</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-sm text-gray-700">
-              {session ? (
-                <>
-                  Signed in as <span className="font-medium">{session.user.email}</span>
-                </>
-              ) : (
-                <>Not signed in</>
-              )}
-            </div>
-            {session ? (
-              <Button variant="outline" onClick={signOut} disabled={authBusy}>
-                Sign out
-              </Button>
-            ) : null}
-          </div>
-
-          {!session && (
-            <div className="grid gap-3 md:grid-cols-3 items-end">
-              <div className="md:col-span-1">
-                <Label className="block text-sm font-medium mb-1">Email</Label>
-                <Input
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  placeholder="you@email.com"
-                  type="email"
-                />
-              </div>
-              <div className="md:col-span-1">
-                <Label className="block text-sm font-medium mb-1">Password</Label>
-                <Input
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  placeholder="password"
-                  type="password"
-                />
-              </div>
-              <div className="md:col-span-1 flex gap-2">
-                <Button onClick={signIn} disabled={authBusy || !authEmail || !authPassword}>
-                  Sign in
-                </Button>
-                <Button variant="outline" onClick={signUp} disabled={authBusy || !authEmail || !authPassword}>
-                  Sign up
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {authError && <div className="text-sm text-red-600">{authError}</div>}
-        </CardContent>
-      </Card>
-
-      <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {session === null ? (
+        <div className="p-6 text-sm text-gray-600">Loading…</div>
+      ) : (
+        <>
+          <header className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-3xl font-bold">Bullpen Tracker</h1>
             <p className="text-gray-600">
               Select a pitcher and session. Choose the intended and actual pitch locations.
             </p>
           </div>
-          <Button asChild variant="outline">
-            <Link href="/trends">View Trends</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/trends">View Trends</Link>
+            </Button>
+            <AccountBar />
+          </div>
         </div>
       </header>
 
-      {currentEventId && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 flex flex-col gap-2">
-          <div className="font-medium">Linking marked pitch at {formatLinkTimestamp(linkTimestampSeconds)}</div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={clearLinkingParams}>
-              Cancel linking
-            </Button>
-            {buildLinkingReturnUrl() && (
+          {currentEventId && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 flex flex-col gap-2">
+              <div className="font-medium">Linking marked pitch at {formatLinkTimestamp(linkTimestampSeconds)}</div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={clearLinkingParams}>
+                  Cancel linking
+                </Button>
+                {buildLinkingReturnUrl() && (
               <Button asChild variant="outline" size="sm">
                 <Link href={buildLinkingReturnUrl()!}>Back to session summary</Link>
               </Button>
@@ -1446,6 +1341,8 @@ function HomeClient() {
           </Card>
         </section>
       </div>
+        </>
+      )}
     </main>
   );
 }
