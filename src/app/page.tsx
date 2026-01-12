@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { createClient, type Session } from "@supabase/supabase-js";
+import { type Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import AccountBar from "@/components/AccountBar";
 import { StrikeZoneGrid } from "@/components/StrikeZoneGrid";
+import { supabase } from "@/lib/supabaseClient";
 import {
   Select,
   SelectContent,
@@ -62,12 +63,6 @@ type PitchRow = {
 function fmt(n: number) {
   return Number.isFinite(n) ? n.toFixed(3) : "—";
 }
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-const supabase =
-  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -151,6 +146,7 @@ function HomeClient() {
 
   // Bullpen: keep intended toggle and pitches state
   const [keepIntendedBetweenSaves, setKeepIntendedBetweenSaves] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [pitches, setPitches] = useState<PitchRow[]>([]);
   const [pitchesLoading, setPitchesLoading] = useState(false);
@@ -387,6 +383,7 @@ function HomeClient() {
     if (!supabase || !session?.user?.id || !selectedPitcherId) {
       setSessions([]);
       setSelectedSessionId("");
+      setSessionsLoading(false);
       return;
     }
 
@@ -453,6 +450,7 @@ function HomeClient() {
   useEffect(() => {
     if (!supabase || !session?.user?.id || !selectedSessionId) {
       setPitches([]);
+      setPitchesLoading(false);
       return;
     }
     setHighlightPitchId(null);
@@ -795,6 +793,7 @@ function HomeClient() {
 
   return (
     <main className="min-h-screen p-6 flex flex-col gap-6">
+      <div className="mx-auto w-full max-w-6xl px-4 md:px-6">
       {!supabaseReady && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           Supabase is not configured yet. Ensure <span className="font-mono">app/.env.local</span> has{" "}
@@ -972,11 +971,8 @@ function HomeClient() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-[420px_1fr] items-start">
+      <div className="grid gap-6">
         <section className="flex flex-col gap-3">
-          <div className="text-sm text-gray-600">
-            Status: <span className="font-medium">{status}</span>
-          </div>
           {isEditing && (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
               Editing pitch #{editingPitchNumber ?? "?"}
@@ -988,148 +984,173 @@ function HomeClient() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-gray-600">Filter:</span>
-            <Button
-              size="sm"
-              variant={pitchTypeFilter === "ALL" ? "default" : "outline"}
-              onClick={() => setPitchTypeFilter("ALL")}
-              type="button"
-            >
-              All
-            </Button>
-            {availablePitchTypes.map((t) => (
-              <Button
-                key={t}
-                size="sm"
-                variant={pitchTypeFilter === t ? "default" : "outline"}
-                onClick={() => setPitchTypeFilter(t)}
-                type="button"
-              >
-                {t}
-              </Button>
-            ))}
-            <span className="ml-auto text-gray-500">
-              Showing {filteredPitches.length} of {pitches.length}
-            </span>
-          </div>
-
-          <div className="grid gap-4 max-w-[420px]">
-            <div className="text-sm text-gray-600">
-              Now selecting:{" "}
-              <span className="font-medium">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div className="text-sm text-slate-700">
+              <span className="font-medium">Status:</span> {status}
+              <span className="ml-3 text-slate-500">
+                <span className="font-medium">Now selecting:</span>{" "}
                 {activeGrid === "actual" ? "Actual location" : "Intended location"}
               </span>
             </div>
-            <div
-              className={`rounded-lg border-2 p-2 transition ${
-                activeGrid === "intended" ? "border-gray-900" : "border-transparent opacity-60"
-              }`}
-              onClick={() => setActiveGrid("intended")}
-            >
-              <StrikeZoneGrid
-                label="Intended location"
-                value={intendedZoneId}
-                onSelect={(zoneId) => {
-                  setActiveGrid("intended");
-                  setIntendedZoneId(zoneId);
-                  setActualZoneId(null);
-                }}
-              />
+
+            <div className="flex items-center gap-2">
+              <span className="text-gray-600">Filter:</span>
+              <Button
+                size="sm"
+                variant={pitchTypeFilter === "ALL" ? "default" : "outline"}
+                onClick={() => setPitchTypeFilter("ALL")}
+                type="button"
+              >
+                All
+              </Button>
+              {availablePitchTypes.map((t) => (
+                <Button
+                  key={t}
+                  size="sm"
+                  variant={pitchTypeFilter === t ? "default" : "outline"}
+                  onClick={() => setPitchTypeFilter(t)}
+                  type="button"
+                >
+                  {t}
+                </Button>
+              ))}
             </div>
-            <div
-              className={`rounded-lg border-2 p-2 transition ${
-                activeGrid === "actual" ? "border-gray-900" : "border-transparent opacity-60"
-              }`}
-              onClick={() => setActiveGrid("actual")}
-            >
-              <StrikeZoneGrid
-                label="Actual location"
-                value={actualZoneId}
-                onSelect={(zoneId) => {
-                  setActiveGrid("actual");
-                  setActualZoneId(zoneId);
-                }}
-              />
+
+            <div className="text-sm text-slate-500 md:text-right">
+              Showing {filteredPitches.length} of {pitches.length}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {!isEditing ? (
-              <Button
-                onClick={() => savePitch("create")}
-                disabled={!session || !selectedPitcherId || !selectedSessionId || !intendedZoneId || !actualZoneId}
+          <div className="grid gap-3 max-w-[900px]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 lg:scale-[0.92] lg:origin-top-left">
+              <div
+                className={`rounded-lg border-2 p-2 transition ${
+                  activeGrid === "intended" ? "border-gray-900" : "border-transparent opacity-60"
+                }`}
+                onClick={() => setActiveGrid("intended")}
               >
-                Save pitch
-              </Button>
-            ) : (
-              <Button
-                onClick={() => savePitch("update")}
-                disabled={!session || !selectedPitcherId || !selectedSessionId || !intendedZoneId || !actualZoneId}
+                <StrikeZoneGrid
+                  label="Intended location"
+                  value={intendedZoneId}
+                  onSelect={(zoneId) => {
+                    setActiveGrid("intended");
+                    setIntendedZoneId(zoneId);
+                    setActualZoneId(null);
+                  }}
+                />
+              </div>
+              <div
+                className={`rounded-lg border-2 p-2 transition ${
+                  activeGrid === "actual" ? "border-gray-900" : "border-transparent opacity-60"
+                }`}
+                onClick={() => setActiveGrid("actual")}
               >
-                Update pitch
-              </Button>
-            )}
+                <StrikeZoneGrid
+                  label="Actual location"
+                  value={actualZoneId}
+                  onSelect={(zoneId) => {
+                    setActiveGrid("actual");
+                    setActualZoneId(zoneId);
+                  }}
+                />
+              </div>
+            </div>
+          </div>
 
-            {isEditing && (
+          <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-wrap items-center gap-2">
+              {!isEditing ? (
+                <Button
+                  onClick={() => savePitch("create")}
+                  disabled={!session || !selectedPitcherId || !selectedSessionId || !intendedZoneId || !actualZoneId}
+                >
+                  Save pitch
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => savePitch("update")}
+                  disabled={!session || !selectedPitcherId || !selectedSessionId || !intendedZoneId || !actualZoneId}
+                >
+                  Update pitch
+                </Button>
+              )}
+
+              {isEditing && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditingPitchId(null);
+                    resetPitchForm();
+                  }}
+                >
+                  Cancel edit
+                </Button>
+              )}
+
+              <label className="ml-2 inline-flex items-center gap-2 text-sm text-slate-600 select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={keepIntendedBetweenSaves}
+                  onChange={(e) => setKeepIntendedBetweenSaves(e.target.checked)}
+                />
+                <span>Keep intended after save</span>
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setActualZoneId(null)}
+                disabled={!actualZoneId}
+                title="Clear the actual selection"
+              >
+                Clear actual
+              </Button>
+
               <Button
                 variant="outline"
                 onClick={() => {
-                  setEditingPitchId(null);
-                  resetPitchForm();
+                  setIntendedZoneId(null);
+                  setActualZoneId(null);
                 }}
+                title="Clear intended and actual"
               >
-                Cancel edit
+                Clear intended
               </Button>
-            )}
+            </div>
 
-            <Button
-              variant="outline"
-              onClick={() => setActualZoneId(null)}
-              disabled={!actualZoneId}
-              title="Clear the actual selection"
-            >
-              Clear actual
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIntendedZoneId(null);
-                setActualZoneId(null);
-              }}
-              title="Clear intended and actual"
-            >
-              Clear intended
-            </Button>
-
-            <Button
-              variant="destructive"
-              onClick={clearSessionPitches}
-              disabled={!selectedSessionId || pitches.length === 0}
-              title="Delete all pitches in this session"
-            >
-              Clear session pitches
-            </Button>
-
-            <label className="ml-2 inline-flex items-center gap-2 text-sm text-gray-700 select-none">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={keepIntendedBetweenSaves}
-                onChange={(e) => setKeepIntendedBetweenSaves(e.target.checked)}
-              />
-              Keep intended after save
-            </label>
+            <div className="flex items-center">
+              <Button
+                variant="destructive"
+                onClick={clearSessionPitches}
+                disabled={!selectedSessionId || pitches.length === 0}
+                title="Delete all pitches in this session"
+              >
+                Clear session pitches
+              </Button>
+            </div>
           </div>
 
           <div className="text-sm text-gray-700 space-y-1">
-            <div>
-              Miss (dx, dy): <span className="font-mono">{deltas ? `${fmt(deltas.dx)}, ${fmt(deltas.dy)}` : "—"}</span>
-            </div>
-            <div>
-              Miss distance: <span className="font-mono">{deltas ? fmt(deltas.dist) : "—"}</span>
-            </div>
+            <button
+              type="button"
+              className="text-xs text-slate-600 underline underline-offset-4 hover:text-slate-900"
+              onClick={() => setShowAdvanced((v) => !v)}
+            >
+              {showAdvanced ? "Hide advanced metrics" : "Show advanced metrics"}
+            </button>
+            {showAdvanced && (
+              <>
+                <div>
+                  Miss (dx, dy):{" "}
+                  <span className="font-mono">{deltas ? `${fmt(deltas.dx)}, ${fmt(deltas.dy)}` : "—"}</span>
+                </div>
+                <div>
+                  Miss distance: <span className="font-mono">{deltas ? fmt(deltas.dist) : "—"}</span>
+                </div>
+              </>
+            )}
             {/* Save toast (inline) */}
             <div
               className={`transition-all ${
@@ -1145,204 +1166,217 @@ function HomeClient() {
           </div>
         </section>
 
-        <section className="flex flex-col gap-4 max-w-xl">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Recent pitches</CardTitle>
-              <CardAction>
-                <Button variant="outline" size="sm" onClick={undoLastPitch} disabled={!pitches.length}>
-                  Undo last
-                </Button>
-              </CardAction>
-            </CardHeader>
-            <CardContent>
+        <section className="flex flex-col gap-4">
+          <div className="grid gap-6 lg:grid-cols-[1fr_420px] items-start">
+            <div className="min-w-0">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle>Recent pitches</CardTitle>
+                  <CardAction>
+                    <Button variant="outline" size="sm" onClick={undoLastPitch} disabled={!pitches.length}>
+                      Undo last
+                    </Button>
+                  </CardAction>
+                </CardHeader>
+                <CardContent>
 
-              {!selectedSessionId ? (
-                <div className="text-sm text-gray-600">Select a session to see pitches.</div>
-              ) : pitchesLoading ? (
-                <div className="text-sm text-gray-600">Loading…</div>
-              ) : !pitches.length ? (
-                <div className="text-sm text-gray-600">No pitches yet.</div>
-              ) : !filteredPitches.length ? (
-                <div className="text-sm text-gray-600">No pitches match this filter.</div>
-              ) : (
-                <div className="divide-y rounded-lg border">
-                  {filteredPitches.slice(0, 20).map((p) => {
-                    const isHi = p.id === highlightPitchId;
-                    const out =
-                      p.actual_x < 0.25 || p.actual_x > 0.75 || p.actual_y < 0.25 || p.actual_y > 0.75;
-                    const pitchNum = pitchNumberById.get(p.id);
+                  {!selectedSessionId ? (
+                    <div className="text-sm text-gray-600">Select a session to see pitches.</div>
+                  ) : pitchesLoading ? (
+                    <div className="text-sm text-gray-600">Loading…</div>
+                  ) : !pitches.length ? (
+                    <div className="text-sm text-gray-600">No pitches yet.</div>
+                  ) : !filteredPitches.length ? (
+                    <div className="text-sm text-gray-600">No pitches match this filter.</div>
+                  ) : (
+                    <div className="divide-y rounded-lg border">
+                      {filteredPitches.slice(0, 20).map((p) => {
+                        const isHi = p.id === highlightPitchId;
+                        const out =
+                          p.actual_x < 0.25 || p.actual_x > 0.75 || p.actual_y < 0.25 || p.actual_y > 0.75;
+                        const pitchNum = pitchNumberById.get(p.id);
 
-                    return (
-                      <div
-                        key={p.id}
-                        className={`w-full px-3 py-2 text-sm flex items-center justify-between gap-3 ${
-                          isHi ? "bg-gray-50" : "bg-white"
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setHighlightPitchId((cur) => (cur === p.id ? null : p.id))}
-                          className="flex items-center gap-3 flex-1 text-left"
-                          title="Click to highlight"
-                        >
-                          <div className="font-mono text-gray-500">#{pitchNum ?? "?"}</div>
-                          <div className="font-medium">{p.pitch_type}</div>
-                          {p.tag ? (
-                            <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                              {p.tag}
-                            </span>
-                          ) : null}
-                          <div className="text-gray-600 font-mono">
-                            dx {p.dx.toFixed(3)}, dy {p.dy.toFixed(3)}
+                        return (
+                          <div
+                            key={p.id}
+                            className={`w-full px-3 py-2 text-sm flex items-center justify-between gap-3 ${
+                              isHi ? "bg-gray-50" : "bg-white"
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setHighlightPitchId((cur) => (cur === p.id ? null : p.id))}
+                              className="flex items-center gap-3 flex-1 text-left"
+                              title="Click to highlight"
+                            >
+                              <div className="font-mono text-gray-500">#{pitchNum ?? "?"}</div>
+                              <div className="font-medium">{p.pitch_type}</div>
+                              {p.tag ? (
+                                <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                  {p.tag}
+                                </span>
+                              ) : null}
+                              {p.tag ? (
+                                <div className="text-gray-500 text-xs">
+                                  Tag: <span className="font-medium">{p.tag}</span>
+                                </div>
+                              ) : null}
+                            </button>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className={out ? "text-red-700 border-red-200" : "text-green-700 border-green-200"}
+                              >
+                                {out ? "Out" : "In"}
+                              </Badge>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => startEditPitch(p)}
+                                type="button"
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => deletePitch(p.id)}
+                                type="button"
+                              >
+                                Delete
+                              </Button>
+                            </div>
                           </div>
-                        </button>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className={out ? "text-red-700 border-red-200" : "text-green-700 border-green-200"}
-                          >
-                            {out ? "Out" : "In"}
-                          </Badge>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => startEditPitch(p)}
-                            type="button"
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => deletePitch(p.id)}
-                            type="button"
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="mt-2 text-xs text-gray-500">Click a row to highlight that pitch.</div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Pitch details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Label className="block text-sm font-medium mb-1">Pitch type</Label>
-              <Select value={pitchType} onValueChange={setPitchType}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="FB">Fastball (FB)</SelectItem>
-                  <SelectItem value="SL">Slider (SL)</SelectItem>
-                  <SelectItem value="CB">Curveball (CB)</SelectItem>
-                  <SelectItem value="CH">Changeup (CH)</SelectItem>
-                  <SelectItem value="CT">Cutter (CT)</SelectItem>
-                  <SelectItem value="SI">Sinker (SI)</SelectItem>
-                  <SelectItem value="OT">Other</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Label className="block text-sm font-medium mt-4 mb-1">Tag (optional)</Label>
-              <Input
-                value={tag}
-                onChange={(e) => setTag(e.target.value)}
-                placeholder="Example: miss up, good feel, bullpen"
-              />
-
-              <Label className="block text-sm font-medium mt-4 mb-1">Notes (optional)</Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="min-h-[100px]"
-                placeholder="Example: working glove-side, missed arm-side today"
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Session summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!selectedSessionId ? (
-                <div className="text-sm text-gray-600">Select or create a session to see stats.</div>
-              ) : pitchesLoading ? (
-                <div className="text-sm text-gray-600">Loading pitches…</div>
-              ) : !sessionStats ? (
-                <div className="text-sm text-gray-600">No pitches saved yet for this session.</div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="rounded-lg border p-3">
-                      <div className="text-gray-500">Pitches</div>
-                      <div className="text-xl font-semibold">{sessionStats.n}</div>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <div className="text-gray-500">Avg miss distance</div>
-                      <div className="text-xl font-semibold">{sessionStats.avgDist.toFixed(3)}</div>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <div className="text-gray-500">Avg dx</div>
-                      <div className="text-xl font-semibold">{sessionStats.avgDx.toFixed(3)}</div>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <div className="text-gray-500">Avg dy</div>
-                      <div className="text-xl font-semibold">{sessionStats.avgDy.toFixed(3)}</div>
-                    </div>
-                  </div>
-
-                  <div className="text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600">Out of zone</span>
-                      <span className="font-medium">
-                        {sessionStats.outOfZone} ({Math.round(sessionStats.outOfZonePct * 100)}%)
-                      </span>
-                    </div>
-                    <div className="mt-2 h-2 w-full rounded bg-gray-100 overflow-hidden">
-                      <div
-                        className="h-full bg-gray-800"
-                        style={{ width: `${Math.min(100, Math.max(0, sessionStats.outOfZonePct * 100))}%` }}
-                      />
-                    </div>
-                  </div>
-
-                  {pitchTypeBreakdown.length > 0 && (
-                    <div>
-                      <div className="text-sm font-medium mb-2">By pitch type</div>
-                      <Separator className="mb-2" />
-                      <div className="divide-y rounded-lg border">
-                        {pitchTypeBreakdown.map((row) => (
-                          <div key={row.pitch_type} className="flex items-center justify-between px-3 py-2 text-sm">
-                            <div className="font-medium">{row.pitch_type}</div>
-                            <div className="text-gray-600">{row.n} pitches</div>
-                            <div className="text-gray-600">avg {row.avgDist.toFixed(3)}</div>
-                            <div className="text-gray-600">{Math.round(row.outOfZonePct * 100)}% O-Z</div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">
-                        Zone is the centered box: actual_x/y outside 0.25–0.75 counts as out of zone.
-                      </div>
+                        );
+                      })}
                     </div>
                   )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+                  <div className="mt-2 text-xs text-gray-500">Click a row to highlight that pitch.</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="min-w-0 flex flex-col gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pitch details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Label className="block text-sm font-medium mb-1">Pitch type</Label>
+                  <Select value={pitchType} onValueChange={setPitchType}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="FB">Fastball (FB)</SelectItem>
+                      <SelectItem value="SL">Slider (SL)</SelectItem>
+                      <SelectItem value="CB">Curveball (CB)</SelectItem>
+                      <SelectItem value="CH">Changeup (CH)</SelectItem>
+                      <SelectItem value="CT">Cutter (CT)</SelectItem>
+                      <SelectItem value="SI">Sinker (SI)</SelectItem>
+                      <SelectItem value="OT">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="block text-sm font-medium mt-4 mb-1">Tag (optional)</Label>
+                  <Input
+                    value={tag}
+                    onChange={(e) => setTag(e.target.value)}
+                    placeholder="Example: miss up, good feel, bullpen"
+                  />
+
+                  <Label className="block text-sm font-medium mt-4 mb-1">Notes (optional)</Label>
+                  <Textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="min-h-[100px]"
+                    placeholder="Example: working glove-side, missed arm-side today"
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Session summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {!selectedSessionId ? (
+                    <div className="text-sm text-gray-600">Select or create a session to see stats.</div>
+                  ) : pitchesLoading ? (
+                    <div className="text-sm text-gray-600">Loading pitches…</div>
+                  ) : !sessionStats ? (
+                    <div className="text-sm text-gray-600">No pitches saved yet for this session.</div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-lg border p-3">
+                          <div className="text-gray-500">Pitches</div>
+                          <div className="text-xl font-semibold">{sessionStats.n}</div>
+                        </div>
+                        <div className="rounded-lg border p-3">
+                          <div className="text-gray-500">Avg miss distance</div>
+                          <div className="text-xl font-semibold">{sessionStats.avgDist.toFixed(3)}</div>
+                        </div>
+                        {showAdvanced && (
+                          <>
+                            <div className="rounded-lg border p-3">
+                              <div className="text-gray-500">Avg dx</div>
+                              <div className="text-xl font-semibold">{sessionStats.avgDx.toFixed(3)}</div>
+                            </div>
+                            <div className="rounded-lg border p-3">
+                              <div className="text-gray-500">Avg dy</div>
+                              <div className="text-xl font-semibold">{sessionStats.avgDy.toFixed(3)}</div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-600">Out of zone</span>
+                          <span className="font-medium">
+                            {sessionStats.outOfZone} ({Math.round(sessionStats.outOfZonePct * 100)}%)
+                          </span>
+                        </div>
+                        <div className="mt-2 h-2 w-full rounded bg-gray-100 overflow-hidden">
+                          <div
+                            className="h-full bg-gray-800"
+                            style={{ width: `${Math.min(100, Math.max(0, sessionStats.outOfZonePct * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {pitchTypeBreakdown.length > 0 && (
+                        <div>
+                          <div className="text-sm font-medium mb-2">By pitch type</div>
+                          <Separator className="mb-2" />
+                          <div className="divide-y rounded-lg border">
+                            {pitchTypeBreakdown.map((row) => (
+                              <div key={row.pitch_type} className="flex items-center justify-between px-3 py-2 text-sm">
+                                <div className="font-medium">{row.pitch_type}</div>
+                                <div className="text-gray-600">{row.n} pitches</div>
+                                <div className="text-gray-600">avg {row.avgDist.toFixed(3)}</div>
+                                <div className="text-gray-600">{Math.round(row.outOfZonePct * 100)}% O-Z</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            Zone is the centered box: actual_x/y outside 0.25–0.75 counts as out of zone.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </section>
       </div>
         </>
       )}
+      </div>
     </main>
   );
 }

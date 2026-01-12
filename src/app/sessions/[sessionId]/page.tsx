@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { createClient, type Session } from "@supabase/supabase-js";
+import { type Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import {
 import { StrikeZoneHeatmap } from "@/components/StrikeZoneHeatmap";
 import { StrikeZoneGrid } from "@/components/StrikeZoneGrid";
 import { buildZones5x5, computeSummaryStats, computeZoneCounts, type ZoneId } from "@/lib/strikeZone";
+import { supabase } from "@/lib/supabaseClient";
 
 type PitchRow = {
   id: string;
@@ -67,12 +68,6 @@ type PitcherRow = {
   id: string;
   name: string;
 };
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-const supabase =
-  supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 const zones5x5 = buildZones5x5();
 const zoneById = new Map(zones5x5.map((zone) => [zone.id, zone]));
