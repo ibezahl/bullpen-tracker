@@ -125,7 +125,52 @@ function HomeClient() {
 
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
-  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const hasSessions = Array.isArray(sessions) && sessions.length > 0;
+  const sessionsRequestIdRef = useRef(0);
+  const SESSIONS_TTL_MS = 2 * 60 * 1000;
+  const PITCHES_TTL_MS = 2 * 60 * 1000;
+
+  const sessionsCacheRef = useRef(new Map<string, { at: number; data: SessionRow[] }>());
+  const pitchesCacheRef = useRef(new Map<string, { at: number; data: PitchRow[] }>());
+
+  const nowMs = () => Date.now();
+
+  const getCachedSessions = (pitcherId: string) => {
+    const hit = sessionsCacheRef.current.get(pitcherId);
+    if (!hit) return null;
+    if (nowMs() - hit.at > SESSIONS_TTL_MS) {
+      sessionsCacheRef.current.delete(pitcherId);
+      return null;
+    }
+    return hit.data;
+  };
+
+  const setCachedSessions = (pitcherId: string, data: SessionRow[]) => {
+    sessionsCacheRef.current.set(pitcherId, { at: nowMs(), data });
+  };
+
+  const invalidateSessionsCache = (pitcherId: string) => {
+    sessionsCacheRef.current.delete(pitcherId);
+  };
+
+  const getCachedPitches = (sessionId: string) => {
+    const hit = pitchesCacheRef.current.get(sessionId);
+    if (!hit) return null;
+    if (nowMs() - hit.at > PITCHES_TTL_MS) {
+      pitchesCacheRef.current.delete(sessionId);
+      return null;
+    }
+    return hit.data;
+  };
+
+  const setCachedPitches = (sessionId: string, data: PitchRow[]) => {
+    pitchesCacheRef.current.set(sessionId, { at: nowMs(), data });
+  };
+
+  const invalidatePitchesCache = (sessionId: string) => {
+    pitchesCacheRef.current.delete(sessionId);
+  };
 
   const [newPitcherName, setNewPitcherName] = useState("");
   const [newPitcherHand, setNewPitcherHand] = useState<"R" | "L">("R");
@@ -206,7 +251,7 @@ function HomeClient() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedPitcherId = window.localStorage.getItem(STORAGE_PITCHER_KEY) ?? "";
-    const storedSessionId = window.localStorage.getItem(STORAGE_SESSION_KEY) ?? "";
+    const storedSessionId = window.localStorage.getItem(STORAGE_SESSION_KEY);
     if (storedPitcherId) setSelectedPitcherId(storedPitcherId);
     if (storedSessionId) setSelectedSessionId(storedSessionId);
     setHydrated(true);
@@ -351,6 +396,57 @@ function HomeClient() {
     };
   }, []);
 
+  const loadSessionsForPitcher = async (pitcherId: string) => {
+    const cached = getCachedSessions(pitcherId);
+    if (cached) {
+      setSessions(cached);
+      setSessionsLoading(false);
+
+      // Ensure selectedSessionId is valid, choose first if needed
+      if (cached.length > 0) {
+        setSelectedSessionId((current) => {
+          const ok = Boolean(current) && cached.some((row) => row.id === current);
+          return ok ? current : cached[0].id;
+        });
+      } else {
+        setSelectedSessionId(null);
+      }
+      return;
+    }
+
+    const requestId = ++sessionsRequestIdRef.current;
+    setSessionsLoading(true);
+
+    const { data, error } = await supabase
+      .from("sessions")
+      .select("id,pitcher_id,session_date,label,notes,created_at")
+      .eq("pitcher_id", pitcherId)
+      .order("session_date", { ascending: false })
+      .order("created_at", { ascending: false });
+
+    if (requestId !== sessionsRequestIdRef.current) return;
+
+    if (error) {
+      console.error("[sessions] load error:", error);
+      setSessions([]);
+      setSelectedSessionId(null);
+    } else {
+      setSessions((data ?? []) as SessionRow[]);
+      setCachedSessions(pitcherId, (data ?? []) as SessionRow[]);
+      if ((data?.length ?? 0) > 0) {
+        setSelectedSessionId((current) => {
+          const hasSelected = Boolean(current) && data?.some((row) => row.id === current);
+          return hasSelected ? current : data[0].id;
+        });
+      } else {
+        setSelectedSessionId(null);
+      }
+    }
+
+    if (requestId !== sessionsRequestIdRef.current) return;
+    setSessionsLoading(false);
+  };
+
   // Load pitchers when signed in
   useEffect(() => {
     if (!supabase || !session?.user?.id) return;
@@ -384,47 +480,15 @@ function HomeClient() {
   useEffect(() => {
     if (!supabase || !session?.user?.id || !selectedPitcherId) {
       setSessions([]);
-      setSelectedSessionId("");
+      setSelectedSessionId(null);
       setSessionsLoading(false);
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete("session");
-      router.replace(`/?${params.toString()}`, { scroll: false });
       return;
     }
 
-    const load = async () => {
-      setSessionsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from("sessions")
-          .select("id,pitcher_id,session_date,label,notes,created_at")
-          .eq("pitcher_id", selectedPitcherId)
-          .order("session_date", { ascending: false })
-          .order("created_at", { ascending: false });
-        if (error) throw error;
-        setSessions((data ?? []) as SessionRow[]);
-
-        if ((data?.length ?? 0) > 0) {
-          setSelectedSessionId((current) => {
-            const hasSelected = Boolean(current) && data?.some((row) => row.id === current);
-            return hasSelected ? current : data[0].id;
-          });
-        } else {
-          setSelectedSessionId("");
-          const params = new URLSearchParams(searchParams.toString());
-          params.delete("session");
-          router.replace(`/?${params.toString()}`, { scroll: false });
-        }
-      } catch (e: unknown) {
-        console.error(e);
-        alert(getErrorMessage(e) || "Failed to load sessions");
-      } finally {
-        setSessionsLoading(false);
-      }
-    };
-
-    load();
-  }, [selectedPitcherId, session?.user?.id, router, searchParams]);
+    setPitches([]);
+    setSelectedSessionId(null);
+    loadSessionsForPitcher(selectedPitcherId);
+  }, [selectedPitcherId, session?.user?.id]);
 
   useEffect(() => {
     if (selectedSessionId) {
@@ -433,7 +497,7 @@ function HomeClient() {
   }, [selectedSessionId]);
 
   useEffect(() => {
-    if (!sessions || sessions.length === 0) return;
+    if (!hasSessions) return;
     if (!sessionFromUrl) return;
 
     if (sessionFromUrl !== selectedSessionId) {
@@ -442,11 +506,15 @@ function HomeClient() {
         setSelectedSessionId(sessionFromUrl);
       }
     }
-  }, [sessions, sessionFromUrl, selectedSessionId]);
+  }, [hasSessions, sessions, sessionFromUrl, selectedSessionId]);
 
   useEffect(() => {
     if (!sessionFromUrl) return;
-    if (!sessions || sessions.length === 0) return;
+    if (!hasSessions) {
+      // No sessions for this pitcher is a valid state.
+      // Do not clear selectedSessionId or URL here, to avoid loops/flicker.
+      return;
+    }
 
     const exists = sessions.some((s) => s.id === sessionFromUrl);
 
@@ -459,7 +527,7 @@ function HomeClient() {
       const qs = params.toString();
       router.replace(qs ? `/?${qs}` : "/", { scroll: false });
     }
-  }, [sessions, searchParams, router]);
+  }, [hasSessions, sessionFromUrl, sessions, searchParams, router]);
 
   useEffect(() => {
     if (!supabase || !session?.user?.id || !pendingSessionId) return;
@@ -492,6 +560,12 @@ function HomeClient() {
     }
     setHighlightPitchId(null);
     const load = async () => {
+      const cachedP = getCachedPitches(selectedSessionId);
+      if (cachedP) {
+        setPitches(cachedP);
+        setPitchesLoading(false);
+        return;
+      }
       setPitchesLoading(true);
       try {
         const { data, error } = await supabase
@@ -504,6 +578,7 @@ function HomeClient() {
           .limit(1000);
         if (error) throw error;
         setPitches((data ?? []) as PitchRow[]);
+        setCachedPitches(selectedSessionId, (data ?? []) as PitchRow[]);
       } catch (e: unknown) {
         console.error(e);
         alert(getErrorMessage(e) || "Failed to load pitches");
@@ -524,6 +599,12 @@ function HomeClient() {
       setPendingSessionId(null);
     }
   }, [pendingSessionId, sessions]);
+
+  useEffect(() => {
+    if (!hasSessions && selectedSessionId) {
+      setSelectedSessionId(null);
+    }
+  }, [hasSessions, selectedSessionId]);
 
   function formatLinkTimestamp(seconds: number | null) {
     if (seconds === null || !Number.isFinite(seconds)) return "0:00";
@@ -570,6 +651,10 @@ function HomeClient() {
 
       setPitches((prev) => prev.filter((p) => p.id !== last.id));
       if (highlightPitchId === last.id) setHighlightPitchId(null);
+      if (selectedSessionId) {
+        invalidatePitchesCache(selectedSessionId);
+        invalidateSessionsCache(selectedPitcherId);
+      }
       showToast(`Undid last pitch (${last.pitch_type})`);
     } catch (e: unknown) {
       console.error(e);
@@ -625,7 +710,8 @@ function HomeClient() {
       if (error) throw error;
 
       const row = data as unknown as SessionRow;
-      setSessions((prev) => [row, ...prev]);
+      invalidateSessionsCache(selectedPitcherId);
+      await loadSessionsForPitcher(selectedPitcherId);
       setSelectedSessionId(row.id);
       setNewSessionLabel("");
     } catch (e: unknown) {
@@ -684,11 +770,15 @@ function HomeClient() {
           .single();
         if (error) throw error;
 
-        if (data) {
-          const updated = data as PitchRow;
-          setPitches((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-          showToast(`Updated pitch (${pitchType}) ✅`);
+      if (data) {
+        const updated = data as PitchRow;
+        setPitches((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+        if (selectedSessionId) {
+          invalidatePitchesCache(selectedSessionId);
+          invalidateSessionsCache(selectedPitcherId);
         }
+        showToast(`Updated pitch (${pitchType}) ✅`);
+      }
 
         setEditingPitchId(null);
         resetPitchForm();
@@ -721,6 +811,10 @@ function HomeClient() {
         if (data) {
           const newPitch = data as PitchRow;
           setPitches((prev) => [newPitch, ...prev]);
+          if (selectedSessionId) {
+            invalidatePitchesCache(selectedSessionId);
+            invalidateSessionsCache(selectedPitcherId);
+          }
 
           // Calculate the correct pitch number based on chronological order
           // Sort all pitches (existing + new) by created_at ascending to get chronological order
@@ -792,6 +886,10 @@ function HomeClient() {
       setPitches([]);
       setIntendedZoneId(null);
       setActualZoneId(null);
+      if (selectedSessionId) {
+        invalidatePitchesCache(selectedSessionId);
+        invalidateSessionsCache(selectedPitcherId);
+      }
     } catch (e: unknown) {
       console.error(e);
       alert(getErrorMessage(e) || "Failed to clear session pitches");
@@ -819,6 +917,10 @@ function HomeClient() {
       if (editingPitchId === pitchId) {
         setEditingPitchId(null);
         resetPitchForm();
+      }
+      if (selectedSessionId) {
+        invalidatePitchesCache(selectedSessionId);
+        invalidateSessionsCache(selectedPitcherId);
       }
       showToast("Deleted pitch");
     } catch (e: unknown) {
@@ -932,9 +1034,25 @@ function HomeClient() {
               <CardTitle>Session</CardTitle>
             </CardHeader>
             <CardContent>
-              <Label className="block text-sm font-medium mb-1">Select session</Label>
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-sm font-medium">Select session</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!selectedPitcherId) return;
+                    invalidateSessionsCache(selectedPitcherId);
+                    if (selectedSessionId) invalidatePitchesCache(selectedSessionId);
+                    loadSessionsForPitcher(selectedPitcherId);
+                  }}
+                  disabled={!selectedPitcherId}
+                >
+                  Refresh
+                </Button>
+              </div>
               <Select
-                value={selectedSessionId}
+                value={selectedSessionId ?? ""}
                 onValueChange={(newSessionId) => {
                   setSelectedSessionId(newSessionId);
                   const params = new URLSearchParams(searchParams.toString());
@@ -942,14 +1060,10 @@ function HomeClient() {
                   router.push(`/?${params.toString()}`, { scroll: false });
                 }}
               >
-                <SelectTrigger className="w-full" disabled={!selectedPitcherId || sessionsLoading}>
+                <SelectTrigger className="w-full" disabled={sessionsLoading}>
                   <SelectValue
                     placeholder={
-                      !selectedPitcherId
-                        ? "Select a pitcher first"
-                        : sessionsLoading && hydrated
-                        ? "Loading…"
-                        : "Choose a session"
+                      sessionsLoading ? "Loading..." : sessions.length ? "Choose a session" : "No sessions yet"
                     }
                   />
                 </SelectTrigger>
@@ -969,7 +1083,7 @@ function HomeClient() {
                     <Link href={`/sessions/${selectedSessionId}`}>View Session Summary</Link>
                   </Button>
                 ) : (
-                  <Button variant="outline" size="sm" disabled>
+                  <Button variant="outline" size="sm" disabled={!selectedSessionId}>
                     View Session Summary
                   </Button>
                 )}
