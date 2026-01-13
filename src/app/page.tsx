@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { type Session } from "@supabase/supabase-js";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -103,7 +103,9 @@ function zoneIdToPoint(zoneId: ZoneId): Pt {
 
 function HomeClient() {
   const supabaseReady = Boolean(supabase);
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const sessionFromUrl = searchParams.get("session");
 
   // Auth
   const [session, setSession] = useState<Session | null>(null);
@@ -384,6 +386,9 @@ function HomeClient() {
       setSessions([]);
       setSelectedSessionId("");
       setSessionsLoading(false);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("session");
+      router.replace(`/?${params.toString()}`, { scroll: false });
       return;
     }
 
@@ -406,6 +411,9 @@ function HomeClient() {
           });
         } else {
           setSelectedSessionId("");
+          const params = new URLSearchParams(searchParams.toString());
+          params.delete("session");
+          router.replace(`/?${params.toString()}`, { scroll: false });
         }
       } catch (e: unknown) {
         console.error(e);
@@ -416,13 +424,42 @@ function HomeClient() {
     };
 
     load();
-  }, [selectedPitcherId, session?.user?.id]);
+  }, [selectedPitcherId, session?.user?.id, router, searchParams]);
 
   useEffect(() => {
     if (selectedSessionId) {
       setSessionDateUnlocked(false);
     }
   }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (!sessions || sessions.length === 0) return;
+    if (!sessionFromUrl) return;
+
+    if (sessionFromUrl !== selectedSessionId) {
+      const exists = sessions.some((s) => s.id === sessionFromUrl);
+      if (exists) {
+        setSelectedSessionId(sessionFromUrl);
+      }
+    }
+  }, [sessions, sessionFromUrl, selectedSessionId]);
+
+  useEffect(() => {
+    if (!sessionFromUrl) return;
+    if (!sessions || sessions.length === 0) return;
+
+    const exists = sessions.some((s) => s.id === sessionFromUrl);
+
+    if (!exists) {
+      setSelectedSessionId(null);
+
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("session");
+
+      const qs = params.toString();
+      router.replace(qs ? `/?${qs}` : "/", { scroll: false });
+    }
+  }, [sessions, searchParams, router]);
 
   useEffect(() => {
     if (!supabase || !session?.user?.id || !pendingSessionId) return;
@@ -896,7 +933,15 @@ function HomeClient() {
             </CardHeader>
             <CardContent>
               <Label className="block text-sm font-medium mb-1">Select session</Label>
-              <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
+              <Select
+                value={selectedSessionId}
+                onValueChange={(newSessionId) => {
+                  setSelectedSessionId(newSessionId);
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.set("session", newSessionId);
+                  router.push(`/?${params.toString()}`, { scroll: false });
+                }}
+              >
                 <SelectTrigger className="w-full" disabled={!selectedPitcherId || sessionsLoading}>
                   <SelectValue
                     placeholder={

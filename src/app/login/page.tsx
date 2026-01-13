@@ -187,74 +187,76 @@ export default function LoginPage() {
             </div>
 
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-              Track sessions, chart pitches, and review trends over time.
+              Log bullpen sessions. Track command. Review pitch execution.
             </h1>
             <p className="mt-2 max-w-lg text-slate-600 leading-relaxed">
-              Bullpen Tracker helps you capture each pitch, organize by session, and quickly review location and notes,
-              so you can coach and improve with less friction.
+              Built for pitchers and coaches to log every pitch, compare intended vs actual location, and review command over time.
             </p>
 
             <div className="mt-6 grid gap-4">
               <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <div className="text-sm font-medium text-slate-900">What you can do</div>
+                <div className="text-sm font-medium text-slate-900">Built for bullpens</div>
                 <ul className="mt-2 space-y-2 text-sm text-slate-600">
-                  <li>• Log pitch type, velocity, and location</li>
-                  <li>• Organize sessions by pitcher and date</li>
-                  <li>• Session Summary for quick review</li>
-                  <li>• Tag pitches for video review workflows</li>
-                  <li>• Trends dashboard for long-term progress</li>
+                  <li>• Log pitch type, intent, and result</li>
+                  <li>• Compare intended vs actual location</li>
+                  <li>• Organize bullpen sessions by pitcher and date</li>
+                  <li>• Tag pitches for video review</li>
+                  <li>• Track command trends over time</li>
                 </ul>
               </div>
 
-              <div className="rounded-xl border bg-white p-4 shadow-sm">
-                <div className="text-sm font-medium text-slate-900 mb-2">
-                  Live app preview
-                </div>
-
-                <div className="group relative overflow-hidden rounded-xl border bg-white shadow-sm ring-1 ring-slate-200/60 transition-all duration-200 hover:shadow-md">
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-white/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-                  <div className="overflow-hidden max-h-[340px]">
-                    <img
-                      src="/main-page.png"
-                      alt="Bullpen Tracker main page preview"
-                      className="w-full h-auto object-contain transition-transform duration-300 group-hover:scale-[1.005]"
-                      onLoad={() => setPreviewOk(true)}
-                      onError={() => setPreviewOk(false)}
-                    />
+              <div className="relative rounded-xl">
+                <div className="absolute inset-0 rounded-xl bg-[linear-gradient(to_right,rgba(15,23,42,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.04)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+                <div className="relative z-10 rounded-xl border bg-white p-4 shadow-sm">
+                  <div className="text-sm font-medium text-slate-900 mb-2">
+                    Live app preview
                   </div>
 
-                  {!previewOk && (
-                    <div className="flex items-center justify-center px-4 py-10 text-sm text-slate-500">
-                      Main dashboard showing pitchers, sessions, and pitch details.
+                  <div className="group relative overflow-hidden rounded-xl border bg-white shadow-sm ring-1 ring-slate-200/60 transition-all duration-200 hover:shadow-md">
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/0 via-white/0 to-white/40 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                    <div className="overflow-hidden max-h-[340px]">
+                      <img
+                        src="/main-page.png"
+                        alt="Bullpen Tracker main page preview"
+                        className="w-full h-auto object-contain transition-transform duration-300 group-hover:scale-[1.005]"
+                        onLoad={() => setPreviewOk(true)}
+                        onError={() => setPreviewOk(false)}
+                      />
                     </div>
-                  )}
-                </div>
 
-                <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-                  <span>Dashboard preview</span>
-                  <span className="rounded-full border bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
-                    Real app screenshot
-                  </span>
-                </div>
+                    {!previewOk && (
+                      <div className="flex items-center justify-center px-4 py-10 text-sm text-slate-500">
+                        Main dashboard showing pitchers, sessions, and pitch details.
+                      </div>
+                    )}
+                  </div>
 
-                <div className="mt-2 grid gap-2">
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border bg-white text-[11px] font-medium">
-                      1
+                  <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                    <span>Dashboard preview</span>
+                    <span className="rounded-full border bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
+                      Real app screenshot
                     </span>
-                    <span>Select a pitcher and a session</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border bg-white text-[11px] font-medium">
-                      2
-                    </span>
-                    <span>Log pitches with location and tags</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-600">
-                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border bg-white text-[11px] font-medium">
-                      3
-                    </span>
-                    <span>Review Session Summary and trends</span>
+
+                  <div className="mt-2 grid gap-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border bg-white text-[11px] font-medium">
+                        1
+                      </span>
+                      <span>Select a pitcher and a session</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border bg-white text-[11px] font-medium">
+                        2
+                      </span>
+                      <span>Log pitches with location and tags</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border bg-white text-[11px] font-medium">
+                        3
+                      </span>
+                      <span>Review Session Summary and trends</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -278,7 +280,7 @@ export default function LoginPage() {
           <div className="w-full max-w-md pt-16">
             <Card className="shadow-sm">
               <CardHeader>
-                <CardTitle>{session ? "You’re signed in" : "Sign in to your account"}</CardTitle>
+                <CardTitle>{session ? "You’re signed in" : "Sign in to your bullpen tracker"}</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {session ? (
