@@ -781,6 +781,11 @@ export default function SessionSummaryPage() {
             ) : null}
           </div>
           <div className="flex items-center gap-2">
+            <Button asChild variant="default">
+              <Link href={`/video/${sessionId}`}>
+                Video Tagging
+              </Link>
+            </Button>
             <Button
               variant="outline"
               onClick={() => downloadCsv(csvText, csvFilename)}
