@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SkeletonCard } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -14,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useDebounce } from "@/lib/hooks";
 import { computeSummaryStats, isInZone } from "@/lib/strikeZone";
 
 type PitcherRow = {
@@ -136,6 +138,17 @@ export default function TrendsPage() {
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
 
+  // Session comparison
+  const [compareSessionA, setCompareSessionA] = useState<string>("");
+  const [compareSessionB, setCompareSessionB] = useState<string>("");
+  const [showComparison, setShowComparison] = useState(false);
+
+  // Debounce filter changes to reduce API calls
+  const debouncedPitcherId = useDebounce(selectedPitcherId, 300);
+  const debouncedDateFrom = useDebounce(dateFrom, 300);
+  const debouncedDateTo = useDebounce(dateTo, 300);
+  const debouncedPitchTypeFilter = useDebounce(pitchTypeFilter, 300);
+
   useEffect(() => {
     if (!supabase) return;
 
@@ -167,14 +180,14 @@ export default function TrendsPage() {
           .order("session_date", { ascending: true, nullsFirst: false })
           .order("created_at", { ascending: true });
 
-        if (selectedPitcherId !== "ALL") {
-          sessionsQuery = sessionsQuery.eq("pitcher_id", selectedPitcherId);
+        if (debouncedPitcherId !== "ALL") {
+          sessionsQuery = sessionsQuery.eq("pitcher_id", debouncedPitcherId);
         }
-        if (dateFrom) {
-          sessionsQuery = sessionsQuery.gte("session_date", dateFrom);
+        if (debouncedDateFrom) {
+          sessionsQuery = sessionsQuery.gte("session_date", debouncedDateFrom);
         }
-        if (dateTo) {
-          sessionsQuery = sessionsQuery.lte("session_date", dateTo);
+        if (debouncedDateTo) {
+          sessionsQuery = sessionsQuery.lte("session_date", debouncedDateTo);
         }
 
         const { data: sessionsData, error: sessionsError } = await sessionsQuery;
@@ -206,7 +219,7 @@ export default function TrendsPage() {
     };
 
     loadSessionsAndPitches();
-  }, [selectedPitcherId, dateFrom, dateTo]);
+  }, [debouncedPitcherId, debouncedDateFrom, debouncedDateTo]);
 
   const availablePitchTypes = useMemo(() => {
     const set = new Set<string>();
@@ -217,7 +230,7 @@ export default function TrendsPage() {
   const sessionMetrics = useMemo(() => {
     const pitchesBySession = new Map<string, PitchRow[]>();
     for (const pitch of pitches) {
-      if (pitchTypeFilter !== "ALL" && pitch.pitch_type !== pitchTypeFilter) continue;
+      if (debouncedPitchTypeFilter !== "ALL" && pitch.pitch_type !== debouncedPitchTypeFilter) continue;
       const list = pitchesBySession.get(pitch.session_id) ?? [];
       list.push(pitch);
       pitchesBySession.set(pitch.session_id, list);
@@ -258,7 +271,7 @@ export default function TrendsPage() {
     }
 
     return metrics;
-  }, [sessions, pitches, pitchTypeFilter]);
+  }, [sessions, pitches, debouncedPitchTypeFilter]);
 
   const totalBySession = sessionMetrics.map((m) => m.total);
   const inZoneBySession = sessionMetrics.map((m) => m.inZoneRate);
@@ -267,7 +280,7 @@ export default function TrendsPage() {
   const labels = sessionMetrics.map((m) => m.label);
 
   const overallStats = useMemo(() => {
-    const all = pitches.filter((p) => pitchTypeFilter === "ALL" || p.pitch_type === pitchTypeFilter);
+    const all = pitches.filter((p) => debouncedPitchTypeFilter === "ALL" || p.pitch_type === debouncedPitchTypeFilter);
     const stats = computeSummaryStats(all);
     let missSum = 0;
     let missCount = 0;
@@ -288,7 +301,33 @@ export default function TrendsPage() {
       avgMissDist: missCount ? missSum / missCount : 0,
       outOfZoneRate: stats.total ? outCount / stats.total : 0,
     };
-  }, [pitches, pitchTypeFilter]);
+  }, [pitches, debouncedPitchTypeFilter]);
+
+  // Session comparison metrics
+  const comparisonData = useMemo(() => {
+    if (!compareSessionA || !compareSessionB) return null;
+
+    const sessionAMeta = sessionMetrics.find((m) => m.sessionId === compareSessionA);
+    const sessionBMeta = sessionMetrics.find((m) => m.sessionId === compareSessionB);
+
+    if (!sessionAMeta || !sessionBMeta) return null;
+
+    const calcDiff = (a: number, b: number) => {
+      if (a === 0) return b > 0 ? 100 : 0;
+      return ((b - a) / a) * 100;
+    };
+
+    return {
+      sessionA: sessionAMeta,
+      sessionB: sessionBMeta,
+      diff: {
+        total: sessionBMeta.total - sessionAMeta.total,
+        inZoneRate: calcDiff(sessionAMeta.inZoneRate, sessionBMeta.inZoneRate),
+        accuracyRate: calcDiff(sessionAMeta.accuracyRate, sessionBMeta.accuracyRate),
+        avgMissDist: calcDiff(sessionAMeta.avgMissDist, sessionBMeta.avgMissDist),
+      },
+    };
+  }, [compareSessionA, compareSessionB, sessionMetrics]);
 
   return (
     <main className="min-h-screen p-6 flex flex-col gap-6">
@@ -361,8 +400,194 @@ export default function TrendsPage() {
         </CardContent>
       </Card>
 
+      {/* Session Comparison */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle>Session Comparison</CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowComparison(!showComparison)}
+              className="min-h-[36px]"
+            >
+              {showComparison ? "Hide" : "Compare Sessions"}
+            </Button>
+          </div>
+        </CardHeader>
+        {showComparison && (
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label className="block text-sm font-medium mb-1">Session A (Baseline)</Label>
+                <Select value={compareSessionA} onValueChange={setCompareSessionA}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select session A" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessionMetrics.map((m) => (
+                      <SelectItem key={m.sessionId} value={m.sessionId}>
+                        {m.label} ({m.total} pitches)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="block text-sm font-medium mb-1">Session B (Compare to)</Label>
+                <Select value={compareSessionB} onValueChange={setCompareSessionB}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select session B" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sessionMetrics.map((m) => (
+                      <SelectItem key={m.sessionId} value={m.sessionId}>
+                        {m.label} ({m.total} pitches)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {comparisonData && (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div className="rounded-lg border p-4">
+                    <div className="text-sm text-gray-500 mb-1">Total Pitches</div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xl font-semibold">{comparisonData.sessionA.total}</span>
+                      <span className="text-gray-400">→</span>
+                      <span className="text-xl font-semibold">{comparisonData.sessionB.total}</span>
+                      <span
+                        className={`text-sm ${
+                          comparisonData.diff.total > 0
+                            ? "text-green-600"
+                            : comparisonData.diff.total < 0
+                            ? "text-red-600"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        ({comparisonData.diff.total > 0 ? "+" : ""}
+                        {comparisonData.diff.total})
+                      </span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-4">
+                    <div className="text-sm text-gray-500 mb-1">In-Zone Rate</div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xl font-semibold">
+                        {Math.round(comparisonData.sessionA.inZoneRate * 100)}%
+                      </span>
+                      <span className="text-gray-400">→</span>
+                      <span className="text-xl font-semibold">
+                        {Math.round(comparisonData.sessionB.inZoneRate * 100)}%
+                      </span>
+                      <span
+                        className={`text-sm ${
+                          comparisonData.diff.inZoneRate > 0
+                            ? "text-green-600"
+                            : comparisonData.diff.inZoneRate < 0
+                            ? "text-red-600"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        ({comparisonData.diff.inZoneRate > 0 ? "+" : ""}
+                        {Math.round(comparisonData.diff.inZoneRate)}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-4">
+                    <div className="text-sm text-gray-500 mb-1">Accuracy Rate</div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xl font-semibold">
+                        {Math.round(comparisonData.sessionA.accuracyRate * 100)}%
+                      </span>
+                      <span className="text-gray-400">→</span>
+                      <span className="text-xl font-semibold">
+                        {Math.round(comparisonData.sessionB.accuracyRate * 100)}%
+                      </span>
+                      <span
+                        className={`text-sm ${
+                          comparisonData.diff.accuracyRate > 0
+                            ? "text-green-600"
+                            : comparisonData.diff.accuracyRate < 0
+                            ? "text-red-600"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        ({comparisonData.diff.accuracyRate > 0 ? "+" : ""}
+                        {Math.round(comparisonData.diff.accuracyRate)}%)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border p-4">
+                    <div className="text-sm text-gray-500 mb-1">Avg Miss Distance</div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xl font-semibold">
+                        {comparisonData.sessionA.avgMissDist.toFixed(3)}
+                      </span>
+                      <span className="text-gray-400">→</span>
+                      <span className="text-xl font-semibold">
+                        {comparisonData.sessionB.avgMissDist.toFixed(3)}
+                      </span>
+                      <span
+                        className={`text-sm ${
+                          comparisonData.diff.avgMissDist < 0
+                            ? "text-green-600"
+                            : comparisonData.diff.avgMissDist > 0
+                            ? "text-red-600"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        ({comparisonData.diff.avgMissDist < 0 ? "" : "+"}
+                        {Math.round(comparisonData.diff.avgMissDist)}%)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
+                  <strong>Summary:</strong>{" "}
+                  {comparisonData.diff.accuracyRate > 0 && comparisonData.diff.inZoneRate > 0
+                    ? "Session B shows improvement in both accuracy and zone discipline."
+                    : comparisonData.diff.accuracyRate < 0 && comparisonData.diff.inZoneRate < 0
+                    ? "Session B shows decline in both accuracy and zone discipline."
+                    : comparisonData.diff.accuracyRate > 0
+                    ? "Session B shows improved accuracy but zone discipline needs attention."
+                    : comparisonData.diff.inZoneRate > 0
+                    ? "Session B shows improved zone discipline but accuracy declined."
+                    : "Sessions show similar performance."}
+                </div>
+              </div>
+            )}
+
+            {!comparisonData && compareSessionA && compareSessionB && (
+              <div className="text-sm text-gray-500">Select two different sessions to compare.</div>
+            )}
+
+            {!comparisonData && (!compareSessionA || !compareSessionB) && (
+              <div className="text-sm text-gray-500">Select two sessions above to see a side-by-side comparison.</div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
       {loading ? (
-        <div className="text-sm text-gray-600">Loading trends…</div>
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-4">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            <SkeletonCard className="h-48" />
+            <SkeletonCard className="h-48" />
+            <SkeletonCard className="h-48" />
+            <SkeletonCard className="h-48" />
+          </div>
+        </div>
       ) : !sessionMetrics.length ? (
         <div className="text-sm text-gray-600">No sessions found for these filters.</div>
       ) : (

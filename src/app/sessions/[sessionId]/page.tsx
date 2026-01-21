@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { StrikeZoneHeatmap } from "@/components/StrikeZoneHeatmap";
 import { StrikeZoneGrid } from "@/components/StrikeZoneGrid";
+import { Skeleton, SkeletonCard, SkeletonHeatmap, SkeletonPitchList } from "@/components/ui/skeleton";
 import { buildZones5x5, computeSummaryStats, computeZoneCounts, type ZoneId } from "@/lib/strikeZone";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -907,17 +908,25 @@ export default function SessionSummaryPage() {
                 </Button>
               </div>
               <div className="flex flex-col gap-1">
+                <Label htmlFor="timestamp-input" className="text-sm font-medium text-gray-700">
+                  Timestamp
+                </Label>
                 <Input
+                  id="timestamp-input"
                   type="text"
                   value={timestampInput}
                   onChange={(e) => setTimestampInput(e.target.value)}
-                  placeholder="Timestamp (seconds or mm:ss)"
+                  placeholder="e.g., 45, 1:30, or 1:30:45"
+                  aria-describedby="timestamp-help timestamp-preview"
                 />
-                <div className="text-xs text-gray-500">
-                  Parsed time: {parsedTimestampSeconds ? formatTimestamp(parsedTimestampSeconds) : "—"}
+                <div id="timestamp-help" className="text-xs text-gray-500">
+                  Enter seconds (45), mm:ss (1:30), or hh:mm:ss (1:30:45)
+                </div>
+                <div id="timestamp-preview" className="text-xs text-gray-600 font-medium">
+                  Preview: {parsedTimestampSeconds !== null ? formatTimestamp(parsedTimestampSeconds) : "Invalid format"}
                 </div>
                 {parsedTimestampSeconds === 0 ? (
-                  <div className="text-xs text-amber-700">Timestamp must be greater than 0.</div>
+                  <div className="text-xs text-amber-700" role="alert">Timestamp must be greater than 0.</div>
                 ) : null}
               </div>
             </div>
@@ -1125,7 +1134,23 @@ export default function SessionSummaryPage() {
           </Card>
 
           {loading ? (
-            <div className="text-sm text-gray-600">Loading session pitches…</div>
+            <div className="space-y-6">
+              <div className="grid gap-4 md:grid-cols-3">
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </div>
+              <div className="grid gap-6 md:grid-cols-2">
+                <SkeletonCard className="h-32" />
+                <SkeletonCard className="h-32" />
+              </div>
+              <SkeletonCard className="h-24" />
+              <div className="grid gap-6 md:grid-cols-2">
+                <SkeletonHeatmap />
+                <SkeletonHeatmap />
+              </div>
+              <SkeletonPitchList count={5} />
+            </div>
           ) : errorMessage ? (
         <div className="text-sm text-red-600">{errorMessage}</div>
       ) : (
