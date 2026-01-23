@@ -324,6 +324,17 @@ export function VideoPlayer({
     }
   }, [volume]);
 
+  // Seek to marker when currentMarkerIndex changes
+  useEffect(() => {
+    if (currentMarkerIndex !== undefined && markers[currentMarkerIndex]) {
+      const marker = markers[currentMarkerIndex];
+      if (videoRef.current && marker.timestamp !== undefined) {
+        videoRef.current.currentTime = marker.timestamp;
+        setCurrentTime(marker.timestamp);
+      }
+    }
+  }, [currentMarkerIndex, markers]);
+
   // Auto-hide controls
   useEffect(() => {
     const showControlsHandler = () => {

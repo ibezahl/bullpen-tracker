@@ -68,12 +68,12 @@ export default function LoginPage() {
         return;
       }
       setSession(data.session ?? null);
-      if (data.session) router.replace("/");
+      if (data.session) router.replace("/home");
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      if (nextSession) router.replace("/");
+      if (nextSession) router.replace("/home");
     });
 
     return () => {
@@ -82,7 +82,7 @@ export default function LoginPage() {
   }, [router]);
 
   useEffect(() => {
-    if (session) router.replace("/");
+    if (session) router.replace("/home");
   }, [session, router]);
 
   async function signUp() {
@@ -125,7 +125,7 @@ export default function LoginPage() {
         password: authPassword,
       });
       if (error) throw error;
-      router.replace("/");
+      router.replace("/home");
     } catch (e: unknown) {
       setAuthError(getErrorMessage(e) || "Sign in failed");
     } finally {
@@ -288,7 +288,7 @@ export default function LoginPage() {
                     <div className="text-sm text-slate-700">
                       Signed in as <span className="font-medium">{session.user.email}</span>
                     </div>
-                    <Button onClick={() => router.push("/")}>Go to app</Button>
+                    <Button onClick={() => router.push("/home")}>Go to app</Button>
                   </>
                 ) : (
                   <>
